@@ -266,7 +266,6 @@ body.resizing{user-select:none;cursor:col-resize}
 @media (max-width:900px){
   .app,.app.kp-off,.app.stats-on{grid-template-columns:1fr;height:auto}
   .resizer{display:none}
-  .side{max-height:52vh}
   .wrap{padding:16px}
   .f{grid-template-columns:1fr;gap:6px}
   .f label{padding-top:0}
@@ -303,14 +302,32 @@ body.resizing{user-select:none;cursor:col-resize}
 .gh-dlg input{width:100%;box-sizing:border-box;border:1px solid var(--line2);border-radius:9px;padding:9px 12px;font-size:15px}
 .gh-err{color:#b3412e;font-size:14px;min-height:20px;margin-top:6px}
 .gh-note{font-size:12.5px;color:var(--faint);margin-top:10px;line-height:1.6}
-.totop{display:none;position:fixed;left:14px;bottom:18px;z-index:20;border:0;background:var(--accent);color:#fff;border-radius:22px;padding:10px 16px;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
-@media (max-width:900px){ .totop{display:block} .kp-tab{top:auto;bottom:80px} .p-meta{flex-wrap:wrap} .p-meta .right{margin-left:0} }
+@media (max-width:900px){ .kp-tab{top:auto;bottom:80px} .p-meta{flex-wrap:wrap} .p-meta .right{margin-left:0} }
 .loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:30;color:var(--muted);font-size:16px}
+
+/* ---------- mobile table of contents (drawer) ---------- */
+.toc-btn,.toc-bar,.toc-mask{display:none}
+@media (hover:none){ .item{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none} }
+@media (max-width:900px){
+  .main{padding-top:62px}
+  .side{position:fixed;top:0;left:0;bottom:0;z-index:9;width:min(86vw,380px);height:100%;max-height:none;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;transform:translateX(-102%);visibility:hidden;transition:transform .22s ease,visibility 0s linear .22s}
+  body.toc-open .side{transform:none;visibility:visible;transition:transform .22s ease;box-shadow:6px 0 28px rgba(0,0,0,.18)}
+  .side .list{flex:none;overflow:visible}
+  .toc-bar{display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:3;background:var(--side);border-bottom:1px solid var(--line);padding:6px 8px 6px 20px}
+  .toc-bar b{font-size:16px;color:var(--accent)}
+  .toc-close{width:44px;height:44px;border:0;border-radius:10px;background:transparent;color:var(--muted);font-size:22px;line-height:1;cursor:pointer}
+  .toc-close:hover{background:var(--accent-soft);color:var(--accent)}
+  .toc-btn{display:inline-flex;align-items:center;gap:6px;position:fixed;top:10px;left:10px;z-index:7;min-height:44px;min-width:44px;padding:0 18px;border:0;border-radius:22px;background:var(--accent);color:#fff;font-size:15px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.2);cursor:pointer}
+  body.toc-open .toc-mask{display:block;position:fixed;inset:0;z-index:8;background:rgba(20,35,28,.38)}
+  body.toc-open{overflow:hidden}
+  body.toc-open #kpTab{display:none}
+}
 </style>
 </head>
 <body>
 <div class="app">
   <aside class="side">
+    <div class="toc-bar"><b>目录</b><button class="toc-close" id="tocClose" type="button" aria-label="关闭目录" title="关闭目录">✕</button></div>
     <div class="side-head">
       <div class="brand">文献阅读工作台</div><div class="topic">遗产AI交互 · 2025–2026 新文献</div>
       <div class="conn" id="conn"></div>
@@ -370,10 +387,11 @@ body.resizing{user-select:none;cursor:col-resize}
     <div class="btns"><button class="btn" id="aCancel">取消</button><button class="btn primary" id="aOk">添加</button></div>
   </div>
 </div>
+<button class="toc-btn" id="tocBtn" type="button" aria-controls="list" aria-expanded="false">☰ 目录</button>
+<div class="toc-mask" id="tocMask"></div>
 <button class="kp-tab" id="kpTab" title="打开知识点小板">知识点<b id="kpTabN"></b></button>
 <button class="selbtn" id="selBtn">＋ 加入知识点</button>
 <div class="toast" id="toast"></div>
-<button class="totop" id="toTop">☰ 目录</button>
 <div class="loading" id="loading">正在从 GitHub 私有仓库读取…</div>
 <div class="modal" id="ghModal"><div class="dlg gh-dlg">
   <h3>开启云同步（可选）</h3>
@@ -602,9 +620,9 @@ function updateProgress(){
 document.getElementById("list").addEventListener("click",e=>{
   const h=e.target.closest(".grp-h");
   if(h){ const g=h.parentElement; g.classList.toggle("closed"); S.closed[g.dataset.g]=g.classList.contains("closed"); persist(); return; }
-  const it=e.target.closest(".item"); if(it){ if(LONGPRESSED){ LONGPRESSED=false; return; } setView("lit"); open(it.dataset.id); if(window.innerWidth<=900) document.getElementById("main").scrollIntoView({behavior:"smooth"}); }
+  const it=e.target.closest(".item"); if(it){ if(LONGPRESSED){ LONGPRESSED=false; e.stopPropagation(); return; } setView("lit"); open(it.dataset.id); if(isNarrow()){ setToc(false); document.getElementById("main").scrollIntoView({behavior:"smooth"}); } }
 });
-document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>setView(t.dataset.view));
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{ setView(t.dataset.view); if(isNarrow()) setToc(false); });
 function setView(v){
   S.view=v; persist();
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.view===v));
@@ -1269,11 +1287,11 @@ document.getElementById("ghOk").onclick=async()=>{
   }catch(e){ err.textContent=e.auth?"钥匙无效或没有这个仓库的权限":"连不上 GitHub，请检查网络后重试"; }
 };
 document.getElementById("ghCancel").onclick=()=>document.getElementById("ghModal").classList.remove("show");
-document.getElementById("toTop").onclick=()=>{ window.scrollTo({top:0,behavior:"smooth"}); document.getElementById("list").scrollTop=0; };
 let LONGPRESSED=false;
 (function(){
   let t=null;
   listEl.addEventListener("touchstart",e=>{
+    LONGPRESSED=false;
     const it=e.target.closest(".item"); if(!it) return;
     const touch0=e.touches[0];
     t=setTimeout(()=>{ LONGPRESSED=true; it.dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:touch0.clientX,clientY:touch0.clientY})); },550);
@@ -1332,6 +1350,22 @@ async function boot(){
   if(!GH.cfg){ startLocal(); return; }
   await connectAndLoad();
 }
+/* ---------- mobile table of contents (drawer) ---------- */
+const TOC_MQ=window.matchMedia("(max-width:900px)");
+function isNarrow(){ return TOC_MQ.matches; }
+function setToc(on){
+  document.body.classList.toggle("toc-open",!!on);
+  document.getElementById("tocBtn").setAttribute("aria-expanded",on?"true":"false");
+  if(!on){ hideCtx(); return; }
+  const side=document.querySelector(".side"), a=side.querySelector(".item.active");
+  if(a){ const top=a.offsetTop, bot=top+a.offsetHeight; if(top<side.scrollTop+60||bot>side.scrollTop+side.clientHeight) side.scrollTop=Math.max(0,top-side.clientHeight/2); }
+}
+document.getElementById("tocBtn").onclick=()=>setToc(true);
+document.getElementById("tocClose").onclick=()=>setToc(false);
+document.getElementById("tocMask").onclick=()=>setToc(false);
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&document.body.classList.contains("toc-open")) setToc(false); });
+(function(){ const f=()=>{ if(!isNarrow()) setToc(false); }; if(TOC_MQ.addEventListener) TOC_MQ.addEventListener("change",f); else if(TOC_MQ.addListener) TOC_MQ.addListener(f); })();
+document.querySelector(".side").addEventListener("scroll",hideCtx,{passive:true});
 boot();
 </script>
 </body>
